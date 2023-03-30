@@ -1,31 +1,36 @@
 package org.example;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.ToString;
+import lombok.Value;
+
 public class EventBody {
-    private String subId;
-    private String imagesCollectionId;
-    private String imageIndex;
+    Body body;
 
-    public void setSubId(String subId) {
-        this.subId = subId;
+    public EventBody() {
     }
 
-    public void setImagesCollectionId(String imagesCollectionId) {
-        this.imagesCollectionId = imagesCollectionId;
+    public EventBody(Body body) {
+        this.body = body;
     }
 
-    public void setImageIndex(String imageIndex) {
-        this.imageIndex = imageIndex;
+    public static class Body {
+        String subId;
+        String imagesCollectionId;
+        String imageIndex;
+
+        public Body() {
+        }
+
+        public Body(String subId, String imagesCollectionId, String imageIndex) {
+            this.subId = subId;
+            this.imagesCollectionId = imagesCollectionId;
+            this.imageIndex = imageIndex;
+        }
     }
 
-    public String getSubId() {
-        return subId;
-    }
-
-    public String getImagesCollectionId() {
-        return imagesCollectionId;
-    }
-
-    public String getImageIndex() {
-        return imageIndex;
+    public Body getBody() {
+        return body;
     }
 }
