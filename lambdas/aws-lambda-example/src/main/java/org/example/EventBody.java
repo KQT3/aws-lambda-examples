@@ -1,8 +1,8 @@
 package org.example;
 
 public class EventBody {
-   private String subId;
-   private String indexPos;
+    private String subId;
+    private String indexPos;
 
     public String getSubId() {
         return subId;
