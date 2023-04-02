@@ -4,21 +4,24 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
+import org.example.dto.ImageDTO;
 import org.json.JSONObject;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.dynamodb.model.*;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class Handler implements RequestHandler<APIGatewayV2HTTPResponse, QueryResponse> {
+public class Handler implements RequestHandler<APIGatewayV2HTTPResponse, ImageDTO> {
     private static final String TABLE_NAME = "user_images";
 
     @Override
-    public QueryResponse handleRequest(APIGatewayV2HTTPResponse event, Context context) {
+    public ImageDTO handleRequest(APIGatewayV2HTTPResponse event, Context context) {
         LambdaLogger logger = context.getLogger();
 
         JSONObject headers = new JSONObject(event.getHeaders());
@@ -35,12 +38,7 @@ public class Handler implements RequestHandler<APIGatewayV2HTTPResponse, QueryRe
         logger.log("imageIndex: " + imageIndex);
 
         var itemFromDynamoDB = getItemFiltered(subId, imagesCollectionId, imageIndex);
-//        logger.log("itemFromDynamoDB: " + itemFromDynamoDB);
-//        logger.log("itemFromDynamoDB.hasItems(): " + itemFromDynamoDB.hasItems());
-//        logger.log("itemFromDynamoDB.items(): " + itemFromDynamoDB.items());
-//        List<Map<String, AttributeValue>> items = itemFromDynamoDB.items();
-        List<Map<String, AttributeValue>> items = itemFromDynamoDB.items();
-        return items;
+        return toDTO(itemFromDynamoDB.items());
     }
 
     public QueryResponse getItemFiltered(String userId, String imagesCollectionId, String imageIndex) {
@@ -65,11 +63,25 @@ public class Handler implements RequestHandler<APIGatewayV2HTTPResponse, QueryRe
         return dynamoDbClient.query(queryRequest);
     }
 
-//    public void convert(List<Map<String, AttributeValue>> items) {
-//        ImagesCollection imagesCollection = items.stream().map(item -> {
-//
-//            );
-//        }).collect(Collectors.toList());
-//    }
+    public ImageDTO toDTO(List<Map<String, AttributeValue>> items) {
+        return items.stream()
+                .flatMap(item -> item.get("imagesCollection").l().stream().map(image -> {
+                    var imagesCollectionId = image.m().get("imagesCollectionId").s();
+                    var timestamp = image.m().get("timestamp").s();
+                    var images = image.m().get("images").l();
+                    return new ImageDTO(imagesCollectionId, timestamp, toImagesDTO(images));
+                })).findAny().orElseThrow(() -> new RuntimeException("No images found"));
+    }
 
+    private ImageDTO.Image[] toImagesDTO(List<AttributeValue> images) {
+        return images.stream().map(image1 -> {
+            var imageId = image1.m().get("imageId").s();
+            var url = image1.m().get("url").s();
+            return new ImageDTO.Image(imageId, convertURLToCorrectFormat(url));
+        }).toArray(ImageDTO.Image[]::new);
+    }
+
+    public static String convertURLToCorrectFormat(String urlToBeConverted) {
+        return urlToBeConverted.replace("https://s3.amazonaws.com/chainbot.chaincuet.com.storage", "https://storage-chainbot.chaincuet.com");
+    }
 }

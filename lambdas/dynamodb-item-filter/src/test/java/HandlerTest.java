@@ -1,19 +1,20 @@
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.Handler;
-import org.example.ImagesCollection;
 import org.example.JWTHelper;
+import org.example.dto.ImageDTO;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
+import static org.example.Handler.convertURLToCorrectFormat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -24,14 +25,15 @@ import static org.mockito.Mockito.mock;
 class HandlerTest {
     Context context = new TestContext();
     Handler handler = mock(Handler.class);
-
+    QueryResponse queryResponse = mock(QueryResponse.class);
     final String AUTHORIZATION_HEADER = "authorization";
 
     @Test
     public void testHandleRequest() throws NoSuchAlgorithmException {
         //given
         String ACCESS_TOKEN = JWTHelper.createTestToken();
-        Mockito.when(handler.getItemFiltered(anyString(), anyString(), anyString())).thenReturn(null);
+        Mockito.when(handler.getItemFiltered(anyString(), anyString(), anyString())).thenReturn(queryResponse);
+        Mockito.when(queryResponse.items()).thenReturn(null);
         Mockito.when(handler.handleRequest(any(), any())).thenCallRealMethod();
 
         Map<String, String> eventBody = new HashMap<>();
@@ -55,57 +57,73 @@ class HandlerTest {
     }
 
     @Test
-    void testSerialization() throws Exception {
-        // Create a sample ImagesCollection object
-        List<Map<String, ImagesCollection.Images>> list = new ArrayList<>();
-        Map<String, ImagesCollection.Images> map = new HashMap<>();
-        List<ImagesCollection.Images.Image> imagesList = new ArrayList<>();
-        Map<String, ImagesCollection.Images.ImageObject> imageMap = new HashMap<>();
-        imageMap.put("imageId", new ImagesCollection.Images.ImageObject("030cb329-023e-4d26-9c54-3f00fa6d0662"));
-        imageMap.put("url", new ImagesCollection.Images.ImageObject("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/"));
-        ImagesCollection.Images.Image image = new ImagesCollection.Images.Image(imageMap);
-        imagesList.add(image);
-        ImagesCollection.Images images = new ImagesCollection.Images(imagesList, new ImagesCollection.Images.ImageObject("53ceeda8-e6fe-4f53-ab65-c8e0b1de5dbf"), new ImagesCollection.Images.ImageObject("2023-03-25T14:04:49.012Z"));
-        map.put("imagesCollection", images);
-        list.add(map);
-        ImagesCollection imagesCollection = new ImagesCollection(list);
+    public void testConvertDynamoDBItemToDTO() {
+        //given
+        Mockito.when(handler.toDTO(any())).thenCallRealMethod();
 
-        // Serialize the ImagesCollection object
-        ObjectMapper objectMapper = new ObjectMapper();
-        String json = objectMapper.writeValueAsString(imagesCollection);
-        // Check if the serialized JSON string matches the expected output
-        String expectedJson = "{\"l\":[{\"imagesCollection\":{\"images\":[{\"m\":{\"imageId\":{\"s\":\"030cb329-023e-4d26-9c54-3f00fa6d0662\"},\"url\":{\"s\":\"https://s3.amazonaws.com/chainbot.chaincuet.com.storage/\"}}}],\"imagesCollectionId\":{\"s\":\"53ceeda8-e6fe-4f53-ab65-c8e0b1de5dbf\"},\"timestamp\":{\"s\":\"2023-03-25T14:04:49.012Z\"}}}]}";
-        System.out.println(json);
-//        objectMapper.writ
-        assertEquals(expectedJson, json);
+        AttributeValue imageId1 = AttributeValue.fromS("030cb329-023e-4d26-9c54-3f00fa6d0662");
+        AttributeValue url1 = AttributeValue.fromS("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42");
+        Map<String, AttributeValue> image1 = Map.of("imageId", imageId1, "url", url1);
+
+        AttributeValue imageId2 = AttributeValue.fromS("792b0ec0-f49e-475a-99a9-0eb4d7ee38bf");
+        AttributeValue url2 = AttributeValue.fromS("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42");
+        Map<String, AttributeValue> image2 = Map.of("imageId", imageId2, "url", url2);
+
+        AttributeValue imageId3 = AttributeValue.fromS("6f13b587-256a-49f3-a6c3-e799d4b8d605");
+        AttributeValue url3 = AttributeValue.fromS("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42");
+        Map<String, AttributeValue> image3 = Map.of("imageId", imageId3, "url", url3);
+
+        AttributeValue imageId4 = AttributeValue.fromS("b0fbf557-65a7-4f65-af74-870026b2b8f9");
+        AttributeValue url4 = AttributeValue.fromS("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42");
+        Map<String, AttributeValue> image4 = Map.of("imageId", imageId4, "url", url4);
+
+        AttributeValue images = AttributeValue.fromL(List.of(
+                AttributeValue.fromM(image1),
+                AttributeValue.fromM(image2),
+                AttributeValue.fromM(image3),
+                AttributeValue.fromM(image4)
+        ));
+
+        AttributeValue imagesCollectionId = AttributeValue.fromS("53ceeda8-e6fe-4f53-ab65-c8e0b1de5dbf");
+        AttributeValue timestamp = AttributeValue.fromS("2023-03-25T14:04:49.012Z");
+
+        AttributeValue imagesCollection = AttributeValue.fromM(Map.of(
+                "images", images,
+                "imagesCollectionId", imagesCollectionId,
+                "timestamp", timestamp
+        ));
+
+        AttributeValue item = AttributeValue.fromL(List.of(imagesCollection));
+
+        List<Map<String, AttributeValue>> items = List.of(Map.of("imagesCollection", item));
+
+        //when
+        var dto = handler.toDTO(items);
+
+        //then
+        assertEquals(timestamp.s(), dto.getTimestamp());
+        assertEquals(imagesCollectionId.s(), dto.getImagesCollectionId());
+        assertEquals(4, dto.getImages().length);
+        assertEquals(image1.get("imageId").s(), dto.getImages()[0].getImageId());
+        assertEquals(convertURLToCorrectFormat(image1.get("url").s()), dto.getImages()[0].getUrl());
+        assertEquals(image2.get("imageId").s(), dto.getImages()[1].getImageId());
+        assertEquals(convertURLToCorrectFormat(image2.get("url").s()), dto.getImages()[1].getUrl());
+        assertEquals(image3.get("imageId").s(), dto.getImages()[2].getImageId());
+        assertEquals(convertURLToCorrectFormat(image3.get("url").s()), dto.getImages()[2].getUrl());
+        assertEquals(image4.get("imageId").s(), dto.getImages()[3].getImageId());
+        assertEquals(convertURLToCorrectFormat(image4.get("url").s()), dto.getImages()[3].getUrl());
     }
 
     @Test
-    void name() {
-        List<Map<String, ImagesCollection.Images>> imagesCollectionL = new ArrayList<>();
-//        List<ImagesCollection.Images.Image> images = new ArrayList<>();
+    void convertURLToCorrectFormatSuccess() {
+        //given
+        String urlToBeConverted = "https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42";
+        String expectedUrl = "https://storage-chainbot.chaincuet.com/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42";
 
-        List<Map<String, AttributeValue>> items = new ArrayList<>();
-        ImagesCollection.Images.ImageObject imageId = new ImagesCollection.Images.ImageObject(UUID.randomUUID().toString());
-        ImagesCollection.Images.ImageObject url = new ImagesCollection.Images.ImageObject("https://s3.amazonaws.com/chainbot.chaincuet.com.storage");
+        //when
+        String result = convertURLToCorrectFormat(urlToBeConverted);
 
-        ImagesCollection.Images.ImageObject imagesCollectionId = new ImagesCollection.Images.ImageObject(UUID.randomUUID().toString());
-        ImagesCollection.Images.ImageObject timestamp = new ImagesCollection.Images.ImageObject("date");
-
-        List<ImagesCollection.Images.Image> images = new ArrayList<>();
-
-        Map<String, ImagesCollection.Images.ImageObject> image = new HashMap<>();
-        image.put("imageId", imageId);
-        image.put("url", url);
-        ImagesCollection.Images.Image imageM = new ImagesCollection.Images.Image(image);
-        images.add(imageM);
-
-        ImagesCollection.Images imageCollection = new ImagesCollection.Images(images, imagesCollectionId, timestamp);
-        Map<String, ImagesCollection.Images> imagesCollectio = new HashMap<>();
-        imagesCollectio.put("imagesCollection", imageCollection);
-
-        imagesCollectionL.add(imagesCollectio);
-
-        ImagesCollection imagesCollectionObject = new ImagesCollection(imagesCollectionL);
+        //then
+        assertEquals(expectedUrl, result);
     }
 }
