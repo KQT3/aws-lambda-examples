@@ -30,18 +30,16 @@ public class Handler implements RequestHandler<APIGatewayV2HTTPResponse, ImageDT
         String subId = JWTHelper.getSubId(token);
 
         JSONObject body = new JSONObject(event.getBody());
-        String imagesCollectionId = body.getString("imagesCollectionId");
         String imageIndex = body.getString("imageIndex");
 
         logger.log("subId: " + subId);
-        logger.log("imagesCollectionId: " + imagesCollectionId);
         logger.log("imageIndex: " + imageIndex);
 
-        var itemFromDynamoDB = getItemFiltered(subId, imagesCollectionId, imageIndex);
+        var itemFromDynamoDB = getItemFiltered(subId, imageIndex);
         return toDTO(itemFromDynamoDB.items());
     }
 
-    public QueryResponse getItemFiltered(String userId, String imagesCollectionId, String imageIndex) {
+    public QueryResponse getItemFiltered(String userId, String imageIndex) {
         var sdkHttpClient = ApacheHttpClient.builder().build();
         DynamoDbClient dynamoDbClient = DynamoDbClient.builder()
                 .region(Region.US_EAST_1)
@@ -50,13 +48,11 @@ public class Handler implements RequestHandler<APIGatewayV2HTTPResponse, ImageDT
 
         Map<String, AttributeValue> expressionAttributeValues = new HashMap<>();
         expressionAttributeValues.put(":userId", AttributeValue.builder().s(userId).build());
-        expressionAttributeValues.put(":imagesCollectionId", AttributeValue.builder().s(imagesCollectionId).build());
 
         QueryRequest queryRequest = QueryRequest.builder()
                 .tableName(TABLE_NAME)
                 .keyConditionExpression("userId = :userId")
                 .expressionAttributeValues(expressionAttributeValues)
-                .filterExpression("contains(imagesCollection[" + imageIndex + "].imagesCollectionId, :imagesCollectionId)")
                 .projectionExpression("imagesCollection[" + imageIndex + "]")
                 .build();
 
@@ -69,7 +65,7 @@ public class Handler implements RequestHandler<APIGatewayV2HTTPResponse, ImageDT
                     var imagesCollectionId = image.m().get("imagesCollectionId").s();
                     var timestamp = image.m().get("timestamp").s();
                     var images = image.m().get("images").l();
-                    return new ImageDTO(imagesCollectionId, timestamp, toImagesDTO(images));
+                    return new ImageDTO(imagesCollectionId, timestamp, toImagesDTO(images),  item.get("imagesCollection").l().size());
                 })).findAny().orElseThrow(() -> new RuntimeException("No images found"));
     }
 

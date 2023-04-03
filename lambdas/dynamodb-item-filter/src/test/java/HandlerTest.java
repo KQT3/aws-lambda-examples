@@ -32,7 +32,7 @@ class HandlerTest {
     public void testHandleRequest() throws NoSuchAlgorithmException {
         //given
         String ACCESS_TOKEN = JWTHelper.createTestToken();
-        Mockito.when(handler.getItemFiltered(anyString(), anyString(), anyString())).thenReturn(queryResponse);
+        Mockito.when(handler.getItemFiltered(anyString(), anyString())).thenReturn(queryResponse);
         Mockito.when(queryResponse.items()).thenReturn(null);
         Mockito.when(handler.handleRequest(any(), any())).thenCallRealMethod();
 
@@ -99,6 +99,8 @@ class HandlerTest {
 
         //when
         var dto = handler.toDTO(items);
+
+        System.out.println(dto);
 
         //then
         assertEquals(timestamp.s(), dto.getTimestamp());
