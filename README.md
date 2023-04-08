@@ -12,5 +12,5 @@ cd lambdas/java
 
 ```
 cd lambdas/go
-mkdir playground && cd playground && go mod init playground
+mkdir <name> && cd <name> && go mod init <name>
 ```
