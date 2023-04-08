@@ -56,18 +56,54 @@ func HandleLambdaEvent(ctx context.Context, event events.APIGatewayV2HTTPRequest
 }
 
 func getSubId(tokenString string) (string, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return []byte("your-256-bit-secret"), nil // replace with your own secret key
-	})
+	token, err := jwt.(tokenString, jwt.MapClaims{})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error parsing token: %v", err)
 	}
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		return claims["sub"].(string), nil
-	} else {
-		return "", fmt.Errorf("invalid token")
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", fmt.Errorf("invalid token claims")
 	}
+
+	subId, ok := claims["sub"].(string)
+	if !ok {
+		return "", fmt.Errorf("sub claim is not a string")
+	}
+
+	return subId, nil
 }
+
+//func getSubId(tokenString string, publicKey string) (string, error) {
+//	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+//		// Verify that the signing method is RSA
+//		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+//			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+//		}
+//
+//		// Get the public key from the token's header
+//		publicKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(publicKey))
+//		if err != nil {
+//			return nil, fmt.Errorf("error parsing public key: %v", err)
+//		}
+//
+//		return publicKey, nil
+//	})
+//	if err != nil {
+//		return "", fmt.Errorf("error parsing token: %v", err)
+//	}
+//
+//	// Extract the sub claim from the token's payload
+//	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+//		subId, ok := claims["sub"].(string)
+//		if !ok {
+//			return "", fmt.Errorf("sub claim is not a string")
+//		}
+//		return subId, nil
+//	} else {
+//		return "", fmt.Errorf("invalid token claims")
+//	}
+//}
 
 func convertURLToCorrectFormat(urlToBeConverted string) string {
 	return strings.Replace(urlToBeConverted, "https://s3.amazonaws.com/chainbot.chaincuet.com.storage", "https://storage-chainbot.chaincuet.com", 1)

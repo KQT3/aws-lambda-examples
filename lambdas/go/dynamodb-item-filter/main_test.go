@@ -3,6 +3,8 @@ package main
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -26,18 +28,28 @@ func TestConvertURLToCorrectFormat(t *testing.T) {
 }
 
 func TestGetSubId(t *testing.T) {
-	token, _ := createTestToken()
+	token, bytes, err := createTestToken()
+	fmt.Println(token)
 
-	print(token)
+	subId, _ := getSubId(token)
+	fmt.Println("subId: ", subId)
 }
 
-func createTestToken() (string, error) {
+func createTestToken() (string, []byte, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	publicKey := privateKey.PublicKey
-	fmt.Println("publicKey: ", publicKey)
+
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		return "", nil, err
+	}
+	publicKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PUBLIC KEY",
+		Bytes: publicKeyBytes,
+	})
+
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"sub": fmt.Sprintf("%s", uuid.New()),
 		"exp": time.Now().Add(time.Hour).Unix(),
@@ -48,8 +60,8 @@ func createTestToken() (string, error) {
 
 	tokenString, err := token.SignedString(privateKey)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	return tokenString, nil
+	return tokenString, publicKeyPEM, nil
 }
