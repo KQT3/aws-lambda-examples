@@ -16,8 +16,8 @@
     </properties>
 
     <modules>
-        <module>lambdas/aws-lambda-example</module>
-        <module>lambdas/dynamodb-item-filter</module>
+        <module>aws-lambda-example</module>
+        <module>dynamodb-item-filter</module>
     </modules>
 
 </project>
