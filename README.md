@@ -22,3 +22,11 @@ cd lambdas/java
 cd lambdas/go
 mkdir playground && cd playground && go mod init playground
 ```
+
+#### Build Go zip file
+
+``` 
+Set handler to main
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o main main.go
+zip main.zip main
+```
