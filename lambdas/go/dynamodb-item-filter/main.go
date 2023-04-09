@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/form3tech-oss/jwt-go"
 )
 
 const tableName = "user_images"
@@ -56,22 +56,25 @@ func HandleLambdaEvent(ctx context.Context, event events.APIGatewayV2HTTPRequest
 }
 
 func getSubId(tokenString string) (string, error) {
-	token, err := jwt.(tokenString, jwt.MapClaims{})
+	parts := strings.Split(tokenString, ".")
+	decodeString, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", fmt.Errorf("error parsing token: %v", err)
+		return "", err
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
+	var claims map[string]interface{}
+	if err := json.Unmarshal(decodeString, &claims); err != nil {
+		return "", err
+	}
+	fmt.Println(claims)
+	if err := json.Unmarshal(decodeString, &claims); err != nil {
+		return "", err
+	}
+	sub, ok := claims["sub"].(string)
 	if !ok {
-		return "", fmt.Errorf("invalid token claims")
+		return "", fmt.Errorf("missing or invalid 'sub' claim")
 	}
-
-	subId, ok := claims["sub"].(string)
-	if !ok {
-		return "", fmt.Errorf("sub claim is not a string")
-	}
-
-	return subId, nil
+	return sub, nil
 }
 
 //func getSubId(tokenString string, publicKey string) (string, error) {
