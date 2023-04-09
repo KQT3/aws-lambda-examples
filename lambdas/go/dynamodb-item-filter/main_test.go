@@ -39,19 +39,19 @@ func TestHandleLambdaEvent(t *testing.T) {
 func TestConvertDynamoDBItemToDTO(t *testing.T) {
 	//given
 	imageId1 := &dynamodb.AttributeValue{S: aws.String("030cb329-023e-4d26-9c54-3f00fa6d0662")}
-	url1 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42")}
+	url1 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e421")}
 	image1 := map[string]*dynamodb.AttributeValue{"imageId": imageId1, "url": url1}
 
 	imageId2 := &dynamodb.AttributeValue{S: aws.String("792b0ec0-f49e-475a-99a9-0eb4d7ee38bf")}
-	url2 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42")}
+	url2 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e422")}
 	image2 := map[string]*dynamodb.AttributeValue{"imageId": imageId2, "url": url2}
 
 	imageId3 := &dynamodb.AttributeValue{S: aws.String("6f13b587-256a-49f3-a6c3-e799d4b8d605")}
-	url3 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42")}
+	url3 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e423")}
 	image3 := map[string]*dynamodb.AttributeValue{"imageId": imageId3, "url": url3}
 
 	imageId4 := &dynamodb.AttributeValue{S: aws.String("b0fbf557-65a7-4f65-af74-870026b2b8f9")}
-	url4 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42")}
+	url4 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e424")}
 	image4 := map[string]*dynamodb.AttributeValue{"imageId": imageId4, "url": url4}
 
 	images := &dynamodb.AttributeValue{L: []*dynamodb.AttributeValue{
@@ -74,11 +74,21 @@ func TestConvertDynamoDBItemToDTO(t *testing.T) {
 
 	items := []*map[string]*dynamodb.AttributeValue{{"imagesCollection": item}}
 
+	//when
 	dto, err := toDTO(items)
-	fmt.Println(*timestamp.S)
-	fmt.Println(dto.Timestamp)
+
+	//then
 	assert.Nil(t, err, "error should be nil")
-	assert.Equal(t, *timestamp.S, dto.Timestamp, "timestamp should be '2023-03-25T14:04:49.012Z'")
+	assert.Equal(t, *timestamp.S, dto.Timestamp, "timestamp should be same")
+	assert.Equal(t, *imagesCollectionId.S, dto.ImagesCollectionID, "imagesCollectionId should be same")
+	assert.Equal(t, *image1["imageId"].S, dto.Images[0].ImageID, "imageId should be same")
+	assert.Equal(t, *image1["url"].S, dto.Images[0].URL, "imageId should be same")
+	assert.Equal(t, *image2["imageId"].S, dto.Images[1].ImageID, "imageId should be same")
+	assert.Equal(t, *image2["url"].S, dto.Images[1].URL, "imageId should be same")
+	assert.Equal(t, *image3["imageId"].S, dto.Images[2].ImageID, "imageId should be same")
+	assert.Equal(t, *image3["url"].S, dto.Images[2].URL, "imageId should be same")
+	assert.Equal(t, *image4["imageId"].S, dto.Images[3].ImageID, "imageId should be same")
+	assert.Equal(t, *image4["url"].S, dto.Images[3].URL, "imageId should be same")
 }
 
 func TestConvertURLToCorrectFormat(t *testing.T) {
