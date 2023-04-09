@@ -1,18 +1,85 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"math/big"
 	"testing"
 	"time"
 )
+
+func TestHandleLambdaEvent(t *testing.T) {
+	//given
+	token, _, _ := createTestToken()
+
+	event := events.APIGatewayV2HTTPRequest{
+		Headers: map[string]string{
+			"authorization": "Bearer " + token,
+		},
+		Body: `{"imageIndex": "1"}`,
+	}
+
+	//when
+	response, err := HandleLambdaEvent(context.Background(), event)
+
+	//then
+	assert.Nil(t, err, "error should be nil")
+	assert.Equal(t, "works", response, "response should be 'works'")
+}
+
+func TestConvertDynamoDBItemToDTO(t *testing.T) {
+	//given
+	imageId1 := &dynamodb.AttributeValue{S: aws.String("030cb329-023e-4d26-9c54-3f00fa6d0662")}
+	url1 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42")}
+	image1 := map[string]*dynamodb.AttributeValue{"imageId": imageId1, "url": url1}
+
+	imageId2 := &dynamodb.AttributeValue{S: aws.String("792b0ec0-f49e-475a-99a9-0eb4d7ee38bf")}
+	url2 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42")}
+	image2 := map[string]*dynamodb.AttributeValue{"imageId": imageId2, "url": url2}
+
+	imageId3 := &dynamodb.AttributeValue{S: aws.String("6f13b587-256a-49f3-a6c3-e799d4b8d605")}
+	url3 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42")}
+	image3 := map[string]*dynamodb.AttributeValue{"imageId": imageId3, "url": url3}
+
+	imageId4 := &dynamodb.AttributeValue{S: aws.String("b0fbf557-65a7-4f65-af74-870026b2b8f9")}
+	url4 := &dynamodb.AttributeValue{S: aws.String("https://s3.amazonaws.com/chainbot.chaincuet.com.storage/imagebot/c3341d7d-8eb9-4ce5-ac7d-8c4b7e027e42")}
+	image4 := map[string]*dynamodb.AttributeValue{"imageId": imageId4, "url": url4}
+
+	images := &dynamodb.AttributeValue{L: []*dynamodb.AttributeValue{
+		{M: image1},
+		{M: image2},
+		{M: image3},
+		{M: image4},
+	}}
+
+	imagesCollectionId := &dynamodb.AttributeValue{S: aws.String("53ceeda8-e6fe-4f53-ab65-c8e0b1de5dbf")}
+	timestamp := &dynamodb.AttributeValue{S: aws.String("2023-03-25T14:04:49.012Z")}
+
+	imagesCollection := &dynamodb.AttributeValue{M: map[string]*dynamodb.AttributeValue{
+		"images":             images,
+		"imagesCollectionId": imagesCollectionId,
+		"timestamp":          timestamp,
+	}}
+
+	item := &dynamodb.AttributeValue{L: []*dynamodb.AttributeValue{imagesCollection}}
+
+	items := []*map[string]*dynamodb.AttributeValue{{"imagesCollection": item}}
+
+	dto, err := toDTO(items)
+	fmt.Println(*timestamp.S)
+	fmt.Println(dto.Timestamp)
+	assert.Nil(t, err, "error should be nil")
+	assert.Equal(t, *timestamp.S, dto.Timestamp, "timestamp should be '2023-03-25T14:04:49.012Z'")
+}
 
 func TestConvertURLToCorrectFormat(t *testing.T) {
 	//given
@@ -28,10 +95,15 @@ func TestConvertURLToCorrectFormat(t *testing.T) {
 }
 
 func TestGetSubId(t *testing.T) {
-	token := "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJoZmZYS1hTcXY1aDdNd2RibHAwRDRMamROeFNLLTJLUzN2UnY0ajQwQnVZIn0.eyJleHAiOjE2Nzk3NTA2MTYsImlhdCI6MTY3OTc1MDMxNiwiYXV0aF90aW1lIjoxNjc5NzQ5NzE1LCJqdGkiOiI2MGY4M2UyOC1lMmE2LTQ3ZTAtYTg5ZS1mZDBhNjY2YzMwMjgiLCJpc3MiOiJodHRwczovL2F1dGguY2hhaW5jdWV0LmNvbS9hdXRoL3JlYWxtcy9jaGFpbmJvdCIsImF1ZCI6ImFjY291bnQiLCJzdWIiOiIyNjdlOTg1OS0zMzUxLTQxOTQtOWFlNy1mNzNhNWVkOWVmMTEiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJjaGF0Ym90LWNsaWVudCIsInNlc3Npb25fc3RhdGUiOiJiMjUxYjY3MC1kODQyLTRkNmYtYThmNC1jNmFlZTllZmQ2NTUiLCJhY3IiOiIwIiwiYWxsb3dlZC1vcmlnaW5zIjpbImh0dHBzOi8vY2hhaW5tdXNpYy5jaGFpbmN1ZXQuY29tIl0sInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJkZWZhdWx0LXJvbGVzLWNoYWluYm90Iiwib2ZmbGluZV9hY2Nlc3MiLCJ1bWFfYXV0aG9yaXphdGlvbiIsInVzZXIiXX0sInJlc291cmNlX2FjY2VzcyI6eyJhY2NvdW50Ijp7InJvbGVzIjpbIm1hbmFnZS1hY2NvdW50IiwibWFuYWdlLWFjY291bnQtbGlua3MiLCJ2aWV3LXByb2ZpbGUiXX19LCJzY29wZSI6Im9wZW5pZCBlbWFpbCBwcm9maWxlIiwic2lkIjoiYjI1MWI2NzAtZDg0Mi00ZDZmLWE4ZjQtYzZhZWU5ZWZkNjU1IiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJuYW1lIjoiY2hhdGJvdEBnbWFpbC5jb20gY2hhdGJvdEBnbWFpbC5jb20iLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJjaGF0Ym90QGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJjaGF0Ym90QGdtYWlsLmNvbSIsImZhbWlseV9uYW1lIjoiY2hhdGJvdEBnbWFpbC5jb20iLCJlbWFpbCI6ImNoYXRib3RAZ21haWwuY29tIn0.oKvLjFrU0c3H2zs6vSWbqczU0bjTO2-yk6NgGRteVIC9mSNNzKGcAMkYZ-pC0k4ZCTJhqEVipEkMk1uxBB_ZuwvQt4YSpZj6Us3F-3883YgR_7Zb8booFwlG4GXLT72RnWE3RkBZ9KYuAFVVD9k5lSInWp4DBWDOG3A4s7lbd-HiNVA1av86TGgAFVanUa5AIBbA1VnxSA2rHw7QPj4TutzbPUxQpUqMwmUdxgROPyBbYchB_311V9AY3uQQr7D1Xfi0OaSLeT8DfF76MAruPFmiKkEOuW_PFf6wJgL3KOhg5wBWNyg5R6tN5PSbUYnaQJu6FNRbkl-7HHr4B6aBmA"
+	//given
+	expectedSubId := "f8a6902e-df48-4a8f-931e-63f848cd9743"
+	token, _, _ := createTestToken()
 
+	//when
 	subId, _ := getSubId(token)
-	fmt.Println("subId: ", subId)
+
+	//then
+	assert.Equal(t, expectedSubId, subId, "subId did not match")
 }
 
 func createTestToken() (string, []byte, error) {
@@ -50,7 +122,7 @@ func createTestToken() (string, []byte, error) {
 	})
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-		"sub": fmt.Sprintf("%s", uuid.New()),
+		"sub": fmt.Sprintf("%s", "f8a6902e-df48-4a8f-931e-63f848cd9743"),
 		"exp": time.Now().Add(time.Hour).Unix(),
 		"iat": time.Now().Unix(),
 		"nbf": time.Now().Unix(),

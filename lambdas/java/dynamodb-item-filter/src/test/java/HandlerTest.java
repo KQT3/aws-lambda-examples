@@ -37,8 +37,8 @@ class HandlerTest {
         Mockito.when(handler.handleRequest(any(), any())).thenCallRealMethod();
 
         Map<String, String> eventBody = new HashMap<>();
-        eventBody.put("imagesCollectionId", "0");
-        eventBody.put("imageIndex", "5ec5d9a2-3104-4472-89ad-fc45bf4ade51");
+        eventBody.put("imagesCollectionId", "5ec5d9a2-3104-4472-89ad-fc45bf4ade51");
+        eventBody.put("imageIndex", "0");
         String body = new JSONObject(eventBody).toString();
 
         Map<String, String> headers = new HashMap<>();
@@ -96,7 +96,7 @@ class HandlerTest {
         AttributeValue item = AttributeValue.fromL(List.of(imagesCollection));
 
         List<Map<String, AttributeValue>> items = List.of(Map.of("imagesCollection", item));
-
+        System.out.println(items);
         //when
         var dto = handler.toDTO(items);
 

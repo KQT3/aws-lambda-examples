@@ -5,34 +5,34 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
-	"strings"
-
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"log"
+	"strings"
 )
 
 const tableName = "user_images"
 
-type ImageDTO struct {
-	ImagesCollectionID  string      `json:"imagesCollectionId"`
-	Timestamp           string      `json:"timestamp"`
-	Images              []ImageItem `json:"images"`
-	ImagesCollectionLen int         `json:"imagesCollectionLen"`
+type ImageCollectionDTO struct {
+	Images             []*ImageDTO `json:"images"`
+	ImagesCollectionID string      `json:"imagesCollectionId"`
+	Timestamp          string      `json:"timestamp"`
 }
 
-type ImageItem struct {
+type ImageDTO struct {
 	ImageID string `json:"imageId"`
 	URL     string `json:"url"`
 }
 
-func HandleLambdaEvent(ctx context.Context, event events.APIGatewayV2HTTPRequest) (string, error) {
+func HandleLambdaEvent(_ context.Context, event events.APIGatewayV2HTTPRequest) (string, error) {
 	eventJson, _ := json.MarshalIndent(event, "", "  ")
 	log.Printf("EVENT: %s", eventJson)
 	headers := event.Headers
 	authorization := headers["authorization"]
 	token := strings.TrimPrefix(authorization, "Bearer ")
-	subID, err := getSubId(token)
+	subId, err := getSubId(token)
 	if err != nil {
 		log.Printf("Failed to get subId: %v\n", err)
 	}
@@ -45,7 +45,7 @@ func HandleLambdaEvent(ctx context.Context, event events.APIGatewayV2HTTPRequest
 	if !ok {
 		log.Printf("Request body doesn't contain imageIndex\n")
 	}
-	log.Printf("subId: %s\n", subID)
+	log.Printf("subId: %s\n", subId)
 	log.Printf("imageIndex: %s\n", imageIndex)
 
 	if err != nil {
@@ -55,58 +55,89 @@ func HandleLambdaEvent(ctx context.Context, event events.APIGatewayV2HTTPRequest
 	return "works", nil
 }
 
+func toDTO(items []*map[string]*dynamodb.AttributeValue) (*ImageCollectionDTO, error) {
+	if len(items) == 0 {
+		return nil, fmt.Errorf("empty item list")
+	}
+
+	itemMap := *(items[0])
+	imagesCollectionItem := itemMap["imagesCollection"].L[0]
+	if imagesCollectionItem == nil {
+		return nil, fmt.Errorf("missing imagesCollection item")
+	}
+
+	imagesCollection, ok := imagesCollectionItem.M["images"]
+	if !ok {
+		return nil, fmt.Errorf("missing images field in imagesCollection")
+	}
+
+	imageDTOs := make([]*ImageDTO, 0, len(imagesCollection.L))
+	for _, imageItem := range imagesCollection.L {
+		image, err := convertImageItemToDTO(imageItem)
+		if err != nil {
+			return nil, fmt.Errorf("error converting image item to DTO: %v", err)
+		}
+		imageDTOs = append(imageDTOs, image)
+	}
+
+	imagesCollectionIDItem := imagesCollectionItem.M["imagesCollectionId"]
+	if imagesCollectionIDItem == nil {
+		return nil, fmt.Errorf("missing imagesCollectionId field in imagesCollection")
+	}
+
+	imagesCollectionID := aws.StringValue(imagesCollectionIDItem.S)
+
+	timestampItem := imagesCollectionItem.M["timestamp"]
+	if timestampItem == nil {
+		return nil, fmt.Errorf("missing timestamp field in imagesCollection")
+	}
+	timestamp := aws.StringValue(timestampItem.S)
+
+	return &ImageCollectionDTO{
+		Images:             imageDTOs,
+		ImagesCollectionID: imagesCollectionID,
+		Timestamp:          timestamp,
+	}, nil
+}
+
+func convertImageItemToDTO(imageItem *dynamodb.AttributeValue) (*ImageDTO, error) {
+	imageIDItem := imageItem.M["imageId"]
+	if imageIDItem == nil {
+		return nil, fmt.Errorf("missing imageId field in image")
+	}
+
+	urlItem := imageItem.M["url"]
+	if urlItem == nil {
+		return nil, fmt.Errorf("missing url field in image")
+	}
+
+	imageID := aws.StringValue(imageIDItem.S)
+	url := aws.StringValue(urlItem.S)
+
+	return &ImageDTO{
+		ImageID: imageID,
+		URL:     url,
+	}, nil
+}
+
 func getSubId(tokenString string) (string, error) {
 	parts := strings.Split(tokenString, ".")
-	decodeString, err := base64.RawURLEncoding.DecodeString(parts[1])
+	decodeToken, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return "", err
 	}
 
 	var claims map[string]interface{}
-	if err := json.Unmarshal(decodeString, &claims); err != nil {
+	if err := json.Unmarshal(decodeToken, &claims); err != nil {
 		return "", err
 	}
-	fmt.Println(claims)
-	if err := json.Unmarshal(decodeString, &claims); err != nil {
-		return "", err
-	}
+
 	sub, ok := claims["sub"].(string)
 	if !ok {
 		return "", fmt.Errorf("missing or invalid 'sub' claim")
 	}
 	return sub, nil
 }
-
-//func getSubId(tokenString string, publicKey string) (string, error) {
-//	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-//		// Verify that the signing method is RSA
-//		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-//			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-//		}
-//
-//		// Get the public key from the token's header
-//		publicKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(publicKey))
-//		if err != nil {
-//			return nil, fmt.Errorf("error parsing public key: %v", err)
-//		}
-//
-//		return publicKey, nil
-//	})
-//	if err != nil {
-//		return "", fmt.Errorf("error parsing token: %v", err)
-//	}
-//
-//	// Extract the sub claim from the token's payload
-//	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-//		subId, ok := claims["sub"].(string)
-//		if !ok {
-//			return "", fmt.Errorf("sub claim is not a string")
-//		}
-//		return subId, nil
-//	} else {
-//		return "", fmt.Errorf("invalid token claims")
-//	}
-//}
 
 func convertURLToCorrectFormat(urlToBeConverted string) string {
 	return strings.Replace(urlToBeConverted, "https://s3.amazonaws.com/chainbot.chaincuet.com.storage", "https://storage-chainbot.chaincuet.com", 1)
