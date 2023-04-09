@@ -58,17 +58,9 @@ func HandleLambdaEvent(_ context.Context, event events.APIGatewayV2HTTPRequest) 
 		log.Printf("Failed to query item from DynamoDB: %v\n", err)
 	}
 
-	fmt.Println(itemFromDynamoDB)
-	fmt.Println(err)
+	log.Printf("itemFromDynamoDB: %v\n", itemFromDynamoDB)
 
-	items := itemFromDynamoDB.Items
-
-	var ptrItems []*map[string]*dynamodb.AttributeValue
-	for _, item := range items {
-		ptrItems = append(ptrItems, &item)
-	}
-
-	return toDTO(items)
+	return toDTO(itemFromDynamoDB.Items)
 }
 
 func queryItemFromDynamoDB(subId string, imageIndex string) (*dynamodb.QueryOutput, error) {
