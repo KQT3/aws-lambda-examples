@@ -1,3 +1,6 @@
+//go:build !exclude_test
+// +build !exclude_test
+
 package main
 
 import (
@@ -72,7 +75,7 @@ func TestConvertDynamoDBItemToDTO(t *testing.T) {
 
 	item := &dynamodb.AttributeValue{L: []*dynamodb.AttributeValue{imagesCollection}}
 
-	items := []*map[string]*dynamodb.AttributeValue{{"imagesCollection": item}}
+	items := []map[string]*dynamodb.AttributeValue{{"imagesCollection": item}}
 
 	//when
 	dto, err := toDTO(items)
@@ -82,13 +85,13 @@ func TestConvertDynamoDBItemToDTO(t *testing.T) {
 	assert.Equal(t, *timestamp.S, dto.Timestamp, "timestamp should be same")
 	assert.Equal(t, *imagesCollectionId.S, dto.ImagesCollectionID, "imagesCollectionId should be same")
 	assert.Equal(t, *image1["imageId"].S, dto.Images[0].ImageID, "imageId should be same")
-	assert.Equal(t, *image1["url"].S, dto.Images[0].URL, "imageId should be same")
+	assert.Equal(t, convertURLToCorrectFormat(*image1["url"].S), dto.Images[0].URL, "imageId should be same")
 	assert.Equal(t, *image2["imageId"].S, dto.Images[1].ImageID, "imageId should be same")
-	assert.Equal(t, *image2["url"].S, dto.Images[1].URL, "imageId should be same")
+	assert.Equal(t, convertURLToCorrectFormat(*image2["url"].S), dto.Images[1].URL, "imageId should be same")
 	assert.Equal(t, *image3["imageId"].S, dto.Images[2].ImageID, "imageId should be same")
-	assert.Equal(t, *image3["url"].S, dto.Images[2].URL, "imageId should be same")
+	assert.Equal(t, convertURLToCorrectFormat(*image3["url"].S), dto.Images[2].URL, "imageId should be same")
 	assert.Equal(t, *image4["imageId"].S, dto.Images[3].ImageID, "imageId should be same")
-	assert.Equal(t, *image4["url"].S, dto.Images[3].URL, "imageId should be same")
+	assert.Equal(t, convertURLToCorrectFormat(*image4["url"].S), dto.Images[3].URL, "imageId should be same")
 }
 
 func TestConvertURLToCorrectFormat(t *testing.T) {

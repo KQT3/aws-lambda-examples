@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"log"
 	"strings"
@@ -26,7 +27,7 @@ type ImageDTO struct {
 	URL     string `json:"url"`
 }
 
-func HandleLambdaEvent(_ context.Context, event events.APIGatewayV2HTTPRequest) (string, error) {
+func HandleLambdaEvent(_ context.Context, event events.APIGatewayV2HTTPRequest) (*ImageCollectionDTO, error) {
 	eventJson, _ := json.MarshalIndent(event, "", "  ")
 	log.Printf("EVENT: %s", eventJson)
 	headers := event.Headers
@@ -52,16 +53,55 @@ func HandleLambdaEvent(_ context.Context, event events.APIGatewayV2HTTPRequest) 
 		log.Printf("Failed to marshal response: %v\n", err)
 	}
 
-	return "works", nil
+	itemFromDynamoDB, err := queryItemFromDynamoDB(subId, imageIndex)
+	if err != nil {
+		log.Printf("Failed to query item from DynamoDB: %v\n", err)
+	}
+
+	fmt.Println(itemFromDynamoDB)
+	fmt.Println(err)
+
+	items := itemFromDynamoDB.Items
+
+	var ptrItems []*map[string]*dynamodb.AttributeValue
+	for _, item := range items {
+		ptrItems = append(ptrItems, &item)
+	}
+
+	return toDTO(items)
 }
 
-func toDTO(items []*map[string]*dynamodb.AttributeValue) (*ImageCollectionDTO, error) {
+func queryItemFromDynamoDB(subId string, imageIndex string) (*dynamodb.QueryOutput, error) {
+	session.Must(session.NewSession())
+
+	newSession := session.Must(session.NewSession(&aws.Config{
+		Region: aws.String("us-east-1"),
+	}))
+
+	dynamoDBService := dynamodb.New(newSession)
+
+	expressionAttributeValues := map[string]*dynamodb.AttributeValue{
+		":userId": {
+			S: aws.String(subId),
+		},
+	}
+
+	queryRequest := &dynamodb.QueryInput{
+		TableName:                 aws.String(tableName),
+		KeyConditionExpression:    aws.String("userId = :userId"),
+		ExpressionAttributeValues: expressionAttributeValues,
+		ProjectionExpression:      aws.String(fmt.Sprintf("imagesCollection[%s]", imageIndex)),
+	}
+
+	return dynamoDBService.Query(queryRequest)
+}
+
+func toDTO(items []map[string]*dynamodb.AttributeValue) (*ImageCollectionDTO, error) {
 	if len(items) == 0 {
 		return nil, fmt.Errorf("empty item list")
 	}
 
-	itemMap := *(items[0])
-	imagesCollectionItem := itemMap["imagesCollection"].L[0]
+	imagesCollectionItem := items[0]["imagesCollection"].L[0]
 	if imagesCollectionItem == nil {
 		return nil, fmt.Errorf("missing imagesCollection item")
 	}
@@ -112,12 +152,16 @@ func convertImageItemToDTO(imageItem *dynamodb.AttributeValue) (*ImageDTO, error
 	}
 
 	imageID := aws.StringValue(imageIDItem.S)
-	url := aws.StringValue(urlItem.S)
+	url := convertURLToCorrectFormat(aws.StringValue(urlItem.S))
 
 	return &ImageDTO{
 		ImageID: imageID,
 		URL:     url,
 	}, nil
+}
+
+func convertURLToCorrectFormat(urlToBeConverted string) string {
+	return strings.Replace(urlToBeConverted, "https://s3.amazonaws.com/chainbot.chaincuet.com.storage", "https://storage-chainbot.chaincuet.com", 1)
 }
 
 func getSubId(tokenString string) (string, error) {
@@ -137,10 +181,6 @@ func getSubId(tokenString string) (string, error) {
 		return "", fmt.Errorf("missing or invalid 'sub' claim")
 	}
 	return sub, nil
-}
-
-func convertURLToCorrectFormat(urlToBeConverted string) string {
-	return strings.Replace(urlToBeConverted, "https://s3.amazonaws.com/chainbot.chaincuet.com.storage", "https://storage-chainbot.chaincuet.com", 1)
 }
 
 func main() {
