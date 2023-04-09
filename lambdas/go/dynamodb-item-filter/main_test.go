@@ -30,7 +30,7 @@ func TestHandleLambdaEvent(t *testing.T) {
 
 	//when
 	response, err := HandleLambdaEvent(context.Background(), event)
-
+	fmt.Println(response)
 	//then
 	assert.Nil(t, err, "error should be nil")
 	assert.Equal(t, "works", response, "response should be 'works'")
